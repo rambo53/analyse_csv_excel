@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyseur Excel & CSV Avancé</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased flex flex-col">
+
+    <!-- En-tête -->
+    <header class="bg-indigo-700 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-xl border border-indigo-500 shadow-inner">
+                    <i class="fa-solid fa-file-excel text-2xl text-emerald-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Analyseur Excel & CSV</h1>
+                    <p class="text-xs text-indigo-200">Traitement et filtrage intelligent des données localement</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <label for="file-input" class="bg-emerald-600 hover:bg-emerald-500 text-xs px-4 py-2 rounded-lg font-semibold transition cursor-pointer shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-upload"></i> Importer un fichier (.xlsx, .csv)
+                </label>
+                <input type="file" id="file-input" accept=".xlsx, .xls, .csv" class="hidden">
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenu Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6 overflow-y-auto">
+
+        <!-- Zone de dépôt / Alerte fichier initial -->
+        <div id="drop-zone" class="border-2 border-dashed border-indigo-200 bg-white rounded-2xl p-8 text-center hover:border-indigo-400 transition shadow-sm">
+            <div class="max-w-md mx-auto space-y-3">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-700">Glissez-déposez votre fichier Excel ou CSV ici</h3>
+                <p class="text-xs text-slate-500">Formats supportés : .xlsx, .xls, .csv — Traitement sécurisé à 100% dans le navigateur.</p>
+            </div>
+        </div>
+
+        <!-- Section Tableau de bord (Cachée par défaut) -->
+        <div id="dashboard" class="hidden space-y-6">
+
+            <!-- Fichier analysé & Métriques de base -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i class="fa-solid fa-file-csv text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fichier sous analyse</p>
+                        <h2 id="file-info-name" class="text-lg font-bold text-slate-800">NomDuFichier.xlsx</h2>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 flex-1 md:flex-none text-center md:text-left">
+                        <span class="text-xs text-slate-500 font-medium block">Lignes (Filtrées / Totales)</span>
+                        <span id="kpi-rows" class="text-base font-bold text-slate-800">0 / 0</span>
+                    </div>
+                    <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 flex-1 md:flex-none text-center md:text-left">
+                        <span class="text-xs text-slate-500 font-medium block">Nombre de colonnes</span>
+                        <span id="kpi-cols" class="text-base font-bold text-slate-800">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sélecteur de feuilles Excel (si classeur multi-onglets) -->
+            <div id="sheet-selector-container" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between flex-wrap gap-4 hidden">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <i class="fa-solid fa-book text-indigo-600"></i> Feuille active :
+                </div>
+                <div id="sheet-buttons" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Module de Filtres Avancés par Colonne -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2 font-semibold text-slate-700 text-sm">
+                        <i class="fa-solid fa-filter text-indigo-600"></i> Filtres Avancés par Colonne
+                    </div>
+                    <button id="add-filter-btn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-plus"></i> Ajouter un filtre
+                    </button>
+                </div>
+                <div id="filters-container" class="space-y-3"></div>
+                <div id="no-filters-msg" class="text-xs text-slate-400 italic py-1">
+                    Aucun filtre actif. Toutes les lignes du fichier sont affichées.
+                </div>
+            </div>
+
+            <!-- SECTION 1: Répartition par Catégorie (Pleine largeur) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 w-full">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                    <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-column text-indigo-600"></i> Répartition par Catégorie
+                    </h3>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="text-xs font-medium text-slate-500">Colonne :</label>
+                        <select id="cat-col-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"></select>
+                        
+                        <label class="text-xs font-medium text-slate-500 ml-2">Type :</label>
+                        <select id="cat-chart-type-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium">
+                            <option value="bar">Barres verticales</option>
+                            <option value="horizontalBar">Barres horizontales</option>
+                            <option value="pie">Camembert (Pie)</option>
+                            <option value="doughnut">Donut</option>
+                            <option value="line">Ligne</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Message d'Avertissement si > 16 valeurs uniques -->
+                <div id="cat-warning-msg" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                        <span>Attention : cette colonne contient <strong id="cat-unique-count">0</strong> valeurs uniques. Seules les 16 premières valeurs sont affichées sur le graphique pour préserver la lisibilité.</span>
+                    </div>
+                </div>
+
+                <!-- Zone d'affichage ou message "Aucune colonne" -->
+                <div id="cat-content-container">
+                    <div id="cat-empty-msg" class="text-center py-12 text-slate-400 italic text-xs">
+                        Veuillez sélectionner une colonne ci-dessus pour afficher la répartition par catégorie.
+                    </div>
+
+                    <div id="cat-active-view" class="hidden space-y-6">
+                        <div class="h-72 relative w-full">
+                            <canvas id="catChart"></canvas>
+                        </div>
+
+                        <!-- Tableau synthétique des valeurs uniques -->
+                        <div class="border border-slate-200 rounded-lg overflow-hidden">
+                            <div class="bg-slate-100 px-4 py-2 font-semibold text-xs text-slate-700 flex justify-between items-center border-b border-slate-200">
+                                <span>Détail des valeurs uniques (Total filtré : <span id="cat-total-count">0</span>)</span>
+                            </div>
+                            <div class="max-h-56 overflow-y-auto">
+                                <ul id="cat-values-list" class="divide-y divide-slate-100 text-xs"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Évolution des Valeurs Numériques (Pleine largeur) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 w-full">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                    <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-emerald-600"></i> Analyse & Évolution Numérique
+                    </h3>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto flex-wrap">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-medium text-slate-500">Colonne à analyser :</label>
+                            <select id="num-col-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"></select>
+                        </div>
+                        <div class="flex items-center gap-2 sm:ml-2">
+                            <label class="text-xs font-medium text-slate-500">Axe X (Abscisses) :</label>
+                            <select id="num-x-col-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"></select>
+                        </div>
+                        <div class="flex items-center gap-2 sm:ml-2">
+                            <label class="text-xs font-medium text-slate-500">Tri Graph :</label>
+                            <select id="num-sort-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium">
+                                <option value="desc">Décroissant</option>
+                                <option value="asc">Croissant</option>
+                                <option value="appearance">Ordre d'apparition</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Erreur Valeurs Non Numériques -->
+                <div id="num-error-msg" class="hidden bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-3 text-xs space-y-1">
+                    <div class="flex items-center gap-2 font-semibold">
+                        <i class="fa-solid fa-circle-xmark text-rose-600"></i>
+                        <span>Incompatibilité de données numériques</span>
+                    </div>
+                    <p class="text-slate-600 pl-6" id="num-error-details"></p>
+                </div>
+
+                <!-- Zone d'affichage ou message "Aucune colonne" -->
+                <div id="num-content-container">
+                    <div id="num-empty-msg" class="text-center py-12 text-slate-400 italic text-xs">
+                        Veuillez sélectionner une colonne numérique ci-dessus pour consulter ses statistiques et son graph.
+                    </div>
+
+                    <div id="num-active-view" class="hidden space-y-6">
+                        <!-- Stats Cartes (Somme, Moyenne, Médiane, Tops numérotés) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Somme totale</span>
+                                <span id="num-stat-sum" class="text-base font-bold text-slate-800 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Moyenne</span>
+                                <span id="num-stat-avg" class="text-base font-bold text-slate-800 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Médiane</span>
+                                <span id="num-stat-median" class="text-base font-bold text-indigo-600 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">5 Plus hautes</span>
+                                <div id="num-stat-top5" class="text-xs font-semibold text-emerald-600 mt-1 flex flex-col gap-1"></div>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">5 Plus basses</span>
+                                <div id="num-stat-low5" class="text-xs font-semibold text-rose-600 mt-1 flex flex-col gap-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- Graphique Numérique (Limité à 16 valeurs) -->
+                        <div class="h-72 relative w-full">
+                            <canvas id="numChart"></canvas>
+                        </div>
+
+                        <!-- Tableau synthétique des sommes cumulées selon l'abscisse -->
+                        <div class="border border-slate-200 rounded-lg overflow-hidden">
+                            <div class="bg-slate-100 px-4 py-2 font-semibold text-xs text-slate-700 flex justify-between items-center border-b border-slate-200">
+                                <span>Sommes cumulées par code d'abscisse (Total : <span id="num-cumul-total">0</span>)</span>
+                            </div>
+                            <div class="max-h-56 overflow-y-auto">
+                                <ul id="num-values-list" class="divide-y divide-slate-100 text-xs"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau des Données -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50">
+                    <div class="relative w-full sm:w-72">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="global-search" placeholder="Recherche rapide globale..." class="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        <button id="export-btn" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-download"></i> Exporter les données filtrées (CSV)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-[450px]">
+                    <table id="data-table" class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-slate-700 uppercase tracking-wider sticky top-0 z-10 font-semibold border-b border-slate-200">
+                            <tr id="table-headers"></tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-100 text-slate-600"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Script logique global -->
+    <script>
+        let workbookData = null;
+        let fileName = "";
+        let currentSheetName = "";
+        let originalRows = [];
+        let filteredRows = [];
+        let activeFilters = [];
+
+        let catChartInstance = null;
+        let numChartInstance = null;
+
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const dashboard = document.getElementById('dashboard');
+        const globalSearchInput = document.getElementById('global-search');
+
+        // Gestion du Drag & Drop
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('border-indigo-500', 'bg-indigo-50/30'); }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/30'); }, false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt.files.length) handleFile(dt.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            fileName = file.name;
+            document.getElementById('file-info-name').textContent = fileName;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    workbookData = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbookData.SheetNames[0];
+                    loadSheet(firstSheet);
+                    dropZone.classList.add('hidden');
+                    dashboard.classList.remove('hidden');
+                } catch (err) {
+                    alert("Erreur lors de la lecture du fichier : " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadSheet(sheetName) {
+            currentSheetName = sheetName;
+            const worksheet = workbookData.Sheets[sheetName];
+            originalRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+            activeFilters = [];
+            
+            const sheetBtnsContainer = document.getElementById('sheet-buttons');
+            const sheetSelectorContainer = document.getElementById('sheet-selector-container');
+            sheetBtnsContainer.innerHTML = '';
+            
+            if (workbookData.SheetNames.length > 1) {
+                sheetSelectorContainer.classList.remove('hidden');
+                workbookData.SheetNames.forEach(name => {
+                    const btn = document.createElement('button');
+                    btn.className = `text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${name === sheetName ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+                    btn.textContent = name;
+                    btn.addEventListener('click', () => loadSheet(name));
+                    sheetBtnsContainer.appendChild(btn);
+                });
+            } else {
+                sheetSelectorContainer.classList.add('hidden');
+            }
+
+            initFiltersUI();
+            populateChartSelectors();
+            applyFiltersAndSearch();
+        }
+
+        document.getElementById('add-filter-btn').addEventListener('click', () => {
+            if (!originalRows.length) return;
+            const columns = Object.keys(originalRows[0]);
+            const defaultCol = columns[0];
+            const uniqueVals = [...new Set(originalRows.map(r => String(r[defaultCol])))].sort();
+            
+            activeFilters.push({ 
+                column: defaultCol, 
+                operator: 'equals', 
+                value: uniqueVals[0] !== undefined ? uniqueVals[0] : '' 
+            });
+            renderFiltersUI();
+            applyFiltersAndSearch();
+        });
+
+        function initFiltersUI() {
+            activeFilters = [];
+            renderFiltersUI();
+        }
+
+        function renderFiltersUI() {
+            const container = document.getElementById('filters-container');
+            const noFiltersMsg = document.getElementById('no-filters-msg');
+            container.innerHTML = '';
+
+            if (activeFilters.length === 0) {
+                noFiltersMsg.classList.remove('hidden');
+                return;
+            }
+            noFiltersMsg.classList.add('hidden');
+
+            const columns = originalRows.length ? Object.keys(originalRows[0]) : [];
+
+            activeFilters.forEach((filter, index) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = "flex items-center gap-2 flex-wrap bg-slate-50 p-2.5 rounded-lg border border-slate-200";
+
+                const colSelect = document.createElement('select');
+                colSelect.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium";
+                columns.forEach(col => {
+                    const opt = document.createElement('option');
+                    opt.value = col;
+                    opt.textContent = col;
+                    if (col === filter.column) opt.selected = true;
+                    colSelect.appendChild(opt);
+                });
+                colSelect.addEventListener('change', (e) => {
+                    filter.column = e.target.value;
+                    if (filter.operator === 'equals' || filter.operator === 'notequals') {
+                        const uniqueVals = [...new Set(originalRows.map(r => String(r[filter.column])))].sort();
+                        filter.value = uniqueVals[0] !== undefined ? uniqueVals[0] : '';
+                    }
+                    renderFiltersUI();
+                    applyFiltersAndSearch();
+                });
+
+                const opSelect = document.createElement('select');
+                opSelect.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium";
+                const operators = [
+                    { val: 'equals', label: 'égal à' },
+                    { val: 'notequals', label: 'différent de' },
+                    { val: 'contains', label: 'contient' },
+                    { val: 'gt', label: 'supérieur à (>)' },
+                    { val: 'lt', label: 'inférieur à (<)' }
+                ];
+                operators.forEach(op => {
+                    const opt = document.createElement('option');
+                    opt.value = op.val;
+                    opt.textContent = op.label;
+                    if (op.val === filter.operator) opt.selected = true;
+                    opSelect.appendChild(opt);
+                });
+                opSelect.addEventListener('change', (e) => {
+                    filter.operator = e.target.value;
+                    if (filter.operator === 'equals' || filter.operator === 'notequals') {
+                        const uniqueVals = [...new Set(originalRows.map(r => String(r[filter.column])))].sort();
+                        if (!uniqueVals.includes(filter.value)) {
+                            filter.value = uniqueVals[0] !== undefined ? uniqueVals[0] : '';
+                        }
+                    }
+                    renderFiltersUI();
+                    applyFiltersAndSearch();
+                });
+
+                let valueField;
+                if (filter.operator === 'equals' || filter.operator === 'notequals') {
+                    valueField = document.createElement('select');
+                    valueField.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 flex-1 min-w-[150px]";
+                    
+                    const uniqueVals = [...new Set(originalRows.map(r => String(r[filter.column])))].sort();
+                    uniqueVals.forEach(val => {
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = val === "" ? "(Vide)" : val;
+                        if (val === filter.value) opt.selected = true;
+                        valueField.appendChild(opt);
+                    });
+                    
+                    valueField.addEventListener('change', (e) => {
+                        filter.value = e.target.value;
+                        applyFiltersAndSearch();
+                    });
+                } else {
+                    valueField = document.createElement('input');
+                    valueField.type = 'text';
+                    valueField.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 flex-1 min-w-[150px]";
+                    valueField.placeholder = "Valeur de filtre...";
+                    valueField.value = filter.value;
+                    
+                    valueField.addEventListener('input', (e) => {
+                        filter.value = e.target.value;
+                        applyFiltersAndSearch();
+                    });
+                }
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = "text-slate-400 hover:text-rose-600 p-1 rounded transition cursor-pointer";
+                removeBtn.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                removeBtn.addEventListener('click', () => {
+                    activeFilters.splice(index, 1);
+                    renderFiltersUI();
+                    applyFiltersAndSearch();
+                });
+
+                rowDiv.appendChild(colSelect);
+                rowDiv.appendChild(opSelect);
+                rowDiv.appendChild(valueField);
+                rowDiv.appendChild(removeBtn);
+                container.appendChild(rowDiv);
+            });
+        }
+
+        globalSearchInput.addEventListener('input', () => applyFiltersAndSearch());
+
+        function applyFiltersAndSearch() {
+            const globalQuery = globalSearchInput.value.toLowerCase().trim();
+
+            filteredRows = originalRows.filter(row => {
+                for (let filter of activeFilters) {
+                    const cellVal = String(row[filter.column] !== undefined ? row[filter.column] : "").toLowerCase();
+                    const filterVal = String(filter.value).toLowerCase();
+
+                    if (filter.operator === 'equals') {
+                        if (cellVal !== filterVal) return false;
+                    } else if (filter.operator === 'notequals') {
+                        if (cellVal === filterVal) return false;
+                    } else if (filter.operator === 'contains') {
+                        if (!cellVal.includes(filterVal)) return false;
+                    } else if (filter.operator === 'gt') {
+                        if (Number(row[filter.column]) <= Number(filter.value)) return false;
+                    } else if (filter.operator === 'lt') {
+                        if (Number(row[filter.column]) >= Number(filter.value)) return false;
+                    }
+                }
+
+                if (globalQuery) {
+                    const matchGlobal = Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(globalQuery)
+                    );
+                    if (!matchGlobal) return false;
+                }
+
+                return true;
+            });
+
+            updateHeaderMetrics();
+            renderTable();
+            renderCategorySection();
+            renderNumericSection();
+        }
+
+        function updateHeaderMetrics() {
+            const totalRows = originalRows.length;
+            const currentRowsCount = filteredRows.length;
+            const colsCount = totalRows > 0 ? Object.keys(originalRows[0]).length : 0;
+
+            document.getElementById('kpi-rows').textContent = `${currentRowsCount} / ${totalRows}`;
+            document.getElementById('kpi-cols').textContent = colsCount;
+        }
+
+        function populateChartSelectors() {
+            if (!originalRows.length) return;
+            const columns = Object.keys(originalRows[0]);
+            
+            const catSelect = document.getElementById('cat-col-select');
+            catSelect.innerHTML = '<option value="">-- Aucune colonne sélectionnée --</option>';
+            columns.forEach(col => {
+                const opt = document.createElement('option');
+                opt.value = col;
+                opt.textContent = col;
+                catSelect.appendChild(opt);
+            });
+
+            const numSelect = document.getElementById('num-col-select');
+            numSelect.innerHTML = '<option value="">-- Aucune colonne sélectionnée --</option>';
+            
+            const numXSelect = document.getElementById('num-x-col-select');
+            numXSelect.innerHTML = '<option value="">N° Ligne (Index)</option>';
+
+            columns.forEach(col => {
+                const optY = document.createElement('option');
+                optY.value = col;
+                optY.textContent = col;
+                numSelect.appendChild(optY);
+
+                const optX = document.createElement('option');
+                optX.value = col;
+                optX.textContent = col;
+                numXSelect.appendChild(optX);
+            });
+
+            catSelect.onchange = renderCategorySection;
+            document.getElementById('cat-chart-type-select').onchange = renderCategorySection;
+            numSelect.onchange = renderNumericSection;
+            numXSelect.onchange = renderNumericSection;
+            document.getElementById('num-sort-select').onchange = renderNumericSection;
+        }
+
+        function renderCategorySection() {
+            const selectedCol = document.getElementById('cat-col-select').value;
+            const emptyMsg = document.getElementById('cat-empty-msg');
+            const activeView = document.getElementById('cat-active-view');
+            const warningMsg = document.getElementById('cat-warning-msg');
+
+            if (!selectedCol) {
+                emptyMsg.classList.remove('hidden');
+                activeView.classList.add('hidden');
+                warningMsg.classList.add('hidden');
+                return;
+            }
+
+            emptyMsg.classList.add('hidden');
+            activeView.classList.remove('hidden');
+
+            const counts = {};
+            filteredRows.forEach(r => {
+                const val = String(r[selectedCol] !== undefined && r[selectedCol] !== "" ? r[selectedCol] : "(Vide)");
+                counts[val] = (counts[val] || 0) + 1;
+            });
+
+            const uniqueKeys = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+            const totalUnique = uniqueKeys.length;
+            const totalRows = filteredRows.length;
+
+            document.getElementById('cat-total-count').textContent = totalRows;
+
+            if (totalUnique > 16) {
+                warningMsg.classList.remove('hidden');
+                document.getElementById('cat-unique-count').textContent = totalUnique;
+            } else {
+                warningMsg.classList.add('hidden');
+            }
+
+            const listContainer = document.getElementById('cat-values-list');
+            listContainer.innerHTML = '';
+            uniqueKeys.forEach(key => {
+                const count = counts[key];
+                const pct = totalRows > 0 ? ((count / totalRows) * 100).toFixed(1) : 0;
+                
+                const li = document.createElement('li');
+                li.className = "px-4 py-2 flex justify-between items-center hover:bg-slate-50";
+                li.innerHTML = `
+                    <span class="font-medium text-slate-700">${key}</span>
+                    <div class="flex items-center gap-4 text-slate-500">
+                        <span>Nombre : <strong class="text-slate-800">${count}</strong></span>
+                        <span class="w-20 text-right">Pourcentage : <strong class="text-indigo-600">${pct}%</strong></span>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+
+            const displayKeys = uniqueKeys.slice(0, 16);
+            const displayData = displayKeys.map(k => counts[k]);
+
+            const chartTypeSelect = document.getElementById('cat-chart-type-select').value;
+            let actualType = chartTypeSelect;
+            let indexAxis = 'x';
+
+            if (chartTypeSelect === 'horizontalBar') {
+                actualType = 'bar';
+                indexAxis = 'y';
+            }
+
+            const ctx = document.getElementById('catChart').getContext('2d');
+            if (catChartInstance) catChartInstance.destroy();
+
+            catChartInstance = new Chart(ctx, {
+                type: actualType,
+                data: {
+                    labels: displayKeys,
+                    datasets: [{
+                        label: selectedCol,
+                        data: displayData,
+                        backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'],
+                        borderRadius: actualType === 'bar' ? 6 : 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: indexAxis,
+                    plugins: {
+                        legend: { display: ['pie', 'doughnut'].includes(actualType) }
+                    }
+                }
+            });
+        }
+
+        // --- SECTION ANALYSE & EVOLUTION NUMERIQUE ---
+        function renderNumericSection() {
+            const selectedCol = document.getElementById('num-col-select').value;
+            const xAxisCol = document.getElementById('num-x-col-select').value;
+            const sortOrder = document.getElementById('num-sort-select').value;
+
+            const emptyMsg = document.getElementById('num-empty-msg');
+            const activeView = document.getElementById('num-active-view');
+            const errorMsg = document.getElementById('num-error-msg');
+            const errorDetails = document.getElementById('num-error-details');
+
+            if (!selectedCol) {
+                emptyMsg.classList.remove('hidden');
+                activeView.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+                return;
+            }
+
+            const invalidValues = [];
+            const validNumbers = [];
+
+            filteredRows.forEach((r) => {
+                const rawVal = r[selectedCol];
+                if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+
+                const num = Number(rawVal);
+                if (isNaN(num)) {
+                    if (!invalidValues.includes(String(rawVal))) {
+                        invalidValues.push(String(rawVal));
+                    }
+                } else {
+                    validNumbers.push(num);
+                }
+            });
+
+            if (invalidValues.length > 0) {
+                errorMsg.classList.remove('hidden');
+                emptyMsg.classList.add('hidden');
+                activeView.classList.add('hidden');
+
+                const displayedErrors = invalidValues.slice(0, 5).map(v => `"${v}"`).join(', ');
+                const extraText = invalidValues.length > 5 ? ` (et ${invalidValues.length - 5} autre(s)...)` : '';
+                errorDetails.textContent = `Des valeurs non numériques ont été détectées dans la colonne à analyser : ${displayedErrors}${extraText}. Impossible de calculer des métriques exactes.`;
+                return;
+            }
+
+            errorMsg.classList.add('hidden');
+            emptyMsg.classList.add('hidden');
+            activeView.classList.remove('hidden');
+
+            if (validNumbers.length === 0) {
+                document.getElementById('num-stat-sum').textContent = "0";
+                document.getElementById('num-stat-avg').textContent = "0";
+                document.getElementById('num-stat-median').textContent = "0";
+                document.getElementById('num-stat-top5').textContent = "Aucune valeur";
+                document.getElementById('num-stat-low5').textContent = "Aucune valeur";
+                if (numChartInstance) numChartInstance.destroy();
+                return;
+            }
+
+            const sum = validNumbers.reduce((acc, v) => acc + v, 0);
+            const avg = sum / validNumbers.length;
+            const sortedNums = [...validNumbers].sort((a,b) => b - a);
+
+            // Calcul de la Médiane
+            let median = 0;
+            const sortedAsc = [...validNumbers].sort((a,b) => a - b);
+            const mid = Math.floor(sortedAsc.length / 2);
+            if (sortedAsc.length % 2 === 0) {
+                median = (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+            } else {
+                median = sortedAsc[mid];
+            }
+
+            const top5 = sortedNums.slice(0, 5);
+            const low5 = sortedNums.slice(-5).reverse();
+
+            document.getElementById('num-stat-sum').textContent = sum.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            document.getElementById('num-stat-avg').textContent = avg.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            document.getElementById('num-stat-median').textContent = median.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+            document.getElementById('num-stat-top5').innerHTML = top5.map((v, i) => `<span><strong>${i + 1}.</strong> ${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</span>`).join('');
+            document.getElementById('num-stat-low5').innerHTML = low5.map((v, i) => `<span><strong>${i + 1}.</strong> ${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</span>`).join('');
+
+            let itemsToDisplay = [];
+
+            if (xAxisCol) {
+                const groupedSums = {};
+                filteredRows.forEach(r => {
+                    const rawVal = r[selectedCol];
+                    if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+                    const num = Number(rawVal);
+                    if (isNaN(num)) return;
+
+                    const codeX = String(r[xAxisCol] !== undefined && r[xAxisCol] !== "" ? r[xAxisCol] : "(Vide)");
+                    groupedSums[codeX] = (groupedSums[codeX] || 0) + num;
+                });
+
+                itemsToDisplay = Object.keys(groupedSums).map(k => ({ label: k, value: groupedSums[k] }));
+            } else {
+                filteredRows.forEach((r, idx) => {
+                    const rawVal = r[selectedCol];
+                    if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+                    const num = Number(rawVal);
+                    if (isNaN(num)) return;
+
+                    itemsToDisplay.push({ label: `Ligne ${idx + 1}`, value: num });
+                });
+            }
+
+            if (sortOrder === 'desc') {
+                itemsToDisplay.sort((a, b) => b.value - a.value);
+            } else if (sortOrder === 'asc') {
+                itemsToDisplay.sort((a, b) => a.value - b.value);
+            }
+
+            document.getElementById('num-cumul-total').textContent = sum.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            const listContainer = document.getElementById('num-values-list');
+            listContainer.innerHTML = '';
+
+            itemsToDisplay.forEach(item => {
+                const pct = sum !== 0 ? ((item.value / sum) * 100).toFixed(1) : 0;
+                const li = document.createElement('li');
+                li.className = "px-4 py-2 flex justify-between items-center hover:bg-slate-50";
+                li.innerHTML = `
+                    <span class="font-medium text-slate-700">${item.label}</span>
+                    <div class="flex items-center gap-4 text-slate-500">
+                        <span>Somme cumulée : <strong class="text-slate-800">${item.value.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</strong></span>
+                        <span class="w-24 text-right">Pourcentage : <strong class="text-emerald-600">${pct}%</strong></span>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+
+            const chartSlice = itemsToDisplay.slice(0, 16);
+            const chartLabels = chartSlice.map(item => item.label);
+            const chartDataValues = chartSlice.map(item => item.value);
+
+            const ctx = document.getElementById('numChart').getContext('2d');
+            if (numChartInstance) numChartInstance.destroy();
+
+            numChartInstance = new Chart(ctx, {
+                type: xAxisCol ? 'bar' : 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: `${selectedCol} (Top 16 affichés)`,
+                        data: chartDataValues,
+                        borderColor: '#059669',
+                        backgroundColor: xAxisCol ? '#10b981' : 'rgba(16, 185, 129, 0.1)',
+                        borderRadius: xAxisCol ? 6 : 0,
+                        fill: !xAxisCol,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'top' } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderTable() {
+            const headersTr = document.getElementById('table-headers');
+            const tbody = document.getElementById('table-body');
+            headersTr.innerHTML = '';
+            tbody.innerHTML = '';
+
+            if (filteredRows.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="100" class="text-center py-8 text-slate-400 italic">Aucune donnée correspondante trouvée.</td>`;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            const columns = Object.keys(filteredRows[0]);
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.className = "px-4 py-3 font-semibold text-slate-700 whitespace-nowrap";
+                th.textContent = col;
+                headersTr.appendChild(th);
+            });
+
+            const limitRows = filteredRows.slice(0, 200);
+            limitRows.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition";
+                columns.forEach(col => {
+                    const td = document.createElement('td');
+                    td.className = "px-4 py-2.5 whitespace-nowrap text-slate-600";
+                    td.textContent = row[col] !== undefined ? row[col] : "";
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if (!filteredRows.length) return;
+            const ws = XLSX.utils.json_to_sheet(filteredRows);
+            const csvOutput = XLSX.utils.sheet_to_csv(ws);
+            const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `export_filtre_${currentSheetName || 'donnees'}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
