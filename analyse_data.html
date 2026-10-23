@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyseur Excel & CSV Avancé</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased flex flex-col">
+
+    <!-- En-tête -->
+    <header class="bg-indigo-700 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-xl border border-indigo-500 shadow-inner">
+                    <i class="fa-solid fa-file-excel text-2xl text-emerald-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Analyseur Excel & CSV</h1>
+                    <p class="text-xs text-indigo-200">Traitement et filtrage intelligent des données localement</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <label for="file-input" class="bg-emerald-600 hover:bg-emerald-500 text-xs px-4 py-2 rounded-lg font-semibold transition cursor-pointer shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-upload"></i> Importer un fichier (.xlsx, .csv)
+                </label>
+                <input type="file" id="file-input" accept=".xlsx, .xls, .csv" class="hidden">
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenu Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6 overflow-y-auto">
+
+        <!-- Zone de dépôt / Alerte fichier initial -->
+        <div id="drop-zone" class="border-2 border-dashed border-indigo-200 bg-white rounded-2xl p-8 text-center hover:border-indigo-400 transition shadow-sm">
+            <div class="max-w-md mx-auto space-y-3">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-700">Glissez-déposez votre fichier Excel ou CSV ici</h3>
+                <p class="text-xs text-slate-500">Formats supportés : .xlsx, .xls, .csv — Traitement sécurisé à 100% dans le navigateur.</p>
+            </div>
+        </div>
+
+        <!-- Section Tableau de bord (Cachée par défaut) -->
+        <div id="dashboard" class="hidden space-y-6">
+
+            <!-- Fichier analysé & Métriques de base -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i class="fa-solid fa-file-csv text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fichier sous analyse</p>
+                        <h2 id="file-info-name" class="text-lg font-bold text-slate-800">NomDuFichier.xlsx</h2>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 flex-1 md:flex-none text-center md:text-left">
+                        <span class="text-xs text-slate-500 font-medium block">Lignes (Filtrées / Totales)</span>
+                        <span id="kpi-rows" class="text-base font-bold text-slate-800">0 / 0</span>
+                    </div>
+                    <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 flex-1 md:flex-none text-center md:text-left">
+                        <span class="text-xs text-slate-500 font-medium block">Nombre de colonnes</span>
+                        <span id="kpi-cols" class="text-base font-bold text-slate-800">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODULE DE SAUVEGARDE DE CONFIGURATIONS TYPES -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <i class="fa-solid fa-bookmark text-indigo-600"></i> Configurations types :
+                </div>
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <select id="saved-presets-select" class="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium flex-1 sm:w-56">
+                        <option value="">-- Choisir un modèle enregistré --</option>
+                    </select>
+                    <button id="load-preset-btn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs px-3 py-2 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5">
+                        <i class="fa-solid fa-folder-open"></i> Charger
+                    </button>
+                    <button id="save-preset-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-2 rounded-lg font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-floppy-disk"></i> Enregistrer la configuration actuelle
+                    </button>
+                    <button id="delete-preset-btn" class="text-slate-400 hover:text-rose-600 text-xs px-2 py-2 rounded-lg transition cursor-pointer" title="Supprimer le modèle sélectionné">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sélecteur de feuilles Excel (si classeur multi-onglets) -->
+            <div id="sheet-selector-container" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between flex-wrap gap-4 hidden">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <i class="fa-solid fa-book text-indigo-600"></i> Feuille active :
+                </div>
+                <div id="sheet-buttons" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Module de Filtres Avancés par Colonne -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2 font-semibold text-slate-700 text-sm">
+                        <i class="fa-solid fa-filter text-indigo-600"></i> Filtres Avancés par Colonne
+                    </div>
+                    <button id="add-filter-btn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-plus"></i> Ajouter un filtre
+                    </button>
+                </div>
+                <div id="filters-container" class="space-y-3"></div>
+                <div id="no-filters-msg" class="text-xs text-slate-400 italic py-1">
+                    Aucun filtre actif. Toutes les lignes du fichier sont affichées.
+                </div>
+            </div>
+
+            <!-- SECTION 1: Répartition par Catégorie (Group By, Formule & Recherche de Colonne) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 w-full">
+                <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-100 pb-3">
+                    <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-column text-indigo-600"></i> Répartition par Catégorie (Group By)
+                    </h3>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Recherche Abscisse (X) -->
+                        <div class="flex items-center gap-1.5 relative">
+                            <label class="text-xs font-medium text-slate-500">Abscisse (X) :</label>
+                            <div class="relative searchable-select-container" data-target="cat-col-input">
+                                <input type="text" id="cat-col-input" placeholder="Sélectionner une colonne..." class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-40">
+                                <div class="searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recherche Ventiler par -->
+                        <div class="flex items-center gap-1.5 relative">
+                            <label class="text-xs font-medium text-slate-500">Ventiler par :</label>
+                            <div class="relative searchable-select-container" data-target="cat-split-col-input">
+                                <input type="text" id="cat-split-col-input" placeholder="Aucune (Simple)..." class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-40">
+                                <div class="searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5"></div>
+                            </div>
+                        </div>
+
+                        <!-- Recherche Sommer -->
+                        <div class="flex items-center gap-1.5 relative">
+                            <label class="text-xs font-medium text-slate-500">Sommer :</label>
+                            <div class="relative searchable-select-container" data-target="cat-val-col-input">
+                                <input type="text" id="cat-val-col-input" placeholder="Compter (Fréquence)..." class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-40">
+                                <div class="searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5"></div>
+                            </div>
+                        </div>
+
+                        <!-- Type de graphique -->
+                        <div class="flex items-center gap-1.5">
+                            <label class="text-xs font-medium text-slate-500">Type :</label>
+                            <select id="cat-chart-type-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium">
+                                <option value="bar">Barres verticales</option>
+                                <option value="horizontalBar">Barres horizontales</option>
+                                <option value="pie">Camembert (Pie)</option>
+                                <option value="doughnut">Donut</option>
+                                <option value="line">Ligne</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Espace Récapitulatif de la Formule de Calcul -->
+                <div id="cat-formula-box" class="bg-indigo-50/70 border border-indigo-100 text-indigo-900 rounded-lg p-3 text-xs flex items-center gap-2.5">
+                    <i class="fa-solid fa-calculator text-indigo-600 text-sm"></i>
+                    <div>
+                        <span class="font-semibold">Formule active : </span>
+                        <span id="cat-formula-text" class="italic">Veuillez sélectionner une colonne d'abscisse.</span>
+                    </div>
+                </div>
+
+                <!-- Message d'Erreur de Compatibilité Graphique -->
+                <div id="cat-incompatibility-msg" class="hidden bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-3 text-xs flex items-center gap-2.5">
+                    <i class="fa-solid fa-circle-exclamation text-rose-600 text-sm"></i>
+                    <div>
+                        <span class="font-semibold">Graphique incompatible : </span>
+                        <span id="cat-incompatibility-text">Ce type de graphique ne supporte pas cette configuration de données.</span>
+                    </div>
+                </div>
+
+                <!-- Message d'Avertissement si > 16 valeurs uniques -->
+                <div id="cat-warning-msg" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-xs flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                        <span>Attention : cette colonne contient <strong id="cat-unique-count">0</strong> valeurs uniques. Seules les 16 premières valeurs sont affichées sur le graphique pour préserver la lisibilité.</span>
+                    </div>
+                </div>
+
+                <!-- Zone d'affichage ou message "Aucune colonne" -->
+                <div id="cat-content-container">
+                    <div id="cat-empty-msg" class="text-center py-12 text-slate-400 italic text-xs">
+                        Veuillez sélectionner une colonne d'abscisse ci-dessus pour afficher la répartition.
+                    </div>
+
+                    <div id="cat-active-view" class="hidden space-y-6">
+                        <div id="cat-chart-wrapper" class="h-72 relative w-full">
+                            <canvas id="catChart"></canvas>
+                        </div>
+
+                        <!-- Tableau synthétique des valeurs uniques / croisées -->
+                        <div class="border border-slate-200 rounded-lg overflow-hidden">
+                            <div class="bg-slate-100 px-4 py-2 font-semibold text-xs text-slate-700 flex justify-between items-center border-b border-slate-200">
+                                <span>Détail du Group By (Total cumulé : <span id="cat-total-count">0</span>)</span>
+                            </div>
+                            <div class="max-h-56 overflow-y-auto">
+                                <ul id="cat-values-list" class="divide-y divide-slate-100 text-xs"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Évolution des Valeurs Numériques (Pleine largeur & Recherche de Colonne) -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4 w-full">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                    <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-emerald-600"></i> Analyse & Évolution Numérique
+                    </h3>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto flex-wrap">
+                        <!-- Recherche Colonne à analyser -->
+                        <div class="flex items-center gap-1.5 relative">
+                            <label class="text-xs font-medium text-slate-500">Colonne à analyser :</label>
+                            <div class="relative searchable-select-container" data-target="num-col-input">
+                                <input type="text" id="num-col-input" placeholder="Sélectionner une colonne..." class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-40">
+                                <div class="searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5"></div>
+                            </div>
+                        </div>
+
+                        <!-- Recherche Axe X -->
+                        <div class="flex items-center gap-1.5 relative">
+                            <label class="text-xs font-medium text-slate-500">Axe X :</label>
+                            <div class="relative searchable-select-container" data-target="num-x-col-input">
+                                <input type="text" id="num-x-col-input" placeholder="N° Ligne (Index)..." class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-40">
+                                <div class="searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5"></div>
+                            </div>
+                        </div>
+
+                        <!-- Tri Graph -->
+                        <div class="flex items-center gap-1.5">
+                            <label class="text-xs font-medium text-slate-500">Tri Graph :</label>
+                            <select id="num-sort-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500 font-medium">
+                                <option value="desc">Décroissant</option>
+                                <option value="asc">Croissant</option>
+                                <option value="appearance">Ordre d'apparition</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Erreur Valeurs Non Numériques -->
+                <div id="num-error-msg" class="hidden bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-3 text-xs space-y-1">
+                    <div class="flex items-center gap-2 font-semibold">
+                        <i class="fa-solid fa-circle-xmark text-rose-600"></i>
+                        <span>Incompatibilité de données numériques</span>
+                    </div>
+                    <p class="text-slate-600 pl-6" id="num-error-details"></p>
+                </div>
+
+                <!-- Zone d'affichage ou message "Aucune colonne" -->
+                <div id="num-content-container">
+                    <div id="num-empty-msg" class="text-center py-12 text-slate-400 italic text-xs">
+                        Veuillez sélectionner une colonne numérique ci-dessus pour consulter ses statistiques et son graph.
+                    </div>
+
+                    <div id="num-active-view" class="hidden space-y-6">
+                        <!-- Stats Cartes (Somme, Moyenne, Médiane, Tops numérotés) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Somme totale</span>
+                                <span id="num-stat-sum" class="text-base font-bold text-slate-800 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Moyenne</span>
+                                <span id="num-stat-avg" class="text-base font-bold text-slate-800 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Médiane</span>
+                                <span id="num-stat-median" class="text-base font-bold text-indigo-600 mt-1 block">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">5 Plus hautes</span>
+                                <div id="num-stat-top5" class="text-xs font-semibold text-emerald-600 mt-1 flex flex-col gap-1"></div>
+                            </div>
+                            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">5 Plus basses</span>
+                                <div id="num-stat-low5" class="text-xs font-semibold text-rose-600 mt-1 flex flex-col gap-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- Graphique Numérique (Limité à 16 valeurs) -->
+                        <div class="h-72 relative w-full">
+                            <canvas id="numChart"></canvas>
+                        </div>
+
+                        <!-- Tableau synthétique des sommes cumulées selon l'abscisse -->
+                        <div class="border border-slate-200 rounded-lg overflow-hidden">
+                            <div class="bg-slate-100 px-4 py-2 font-semibold text-xs text-slate-700 flex justify-between items-center border-b border-slate-200">
+                                <span>Sommes cumulées par code d'abscisse (Total : <span id="num-cumul-total">0</span>)</span>
+                            </div>
+                            <div class="max-h-56 overflow-y-auto">
+                                <ul id="num-values-list" class="divide-y divide-slate-100 text-xs"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau des Données -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50">
+                    <div class="relative w-full sm:w-72">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="global-search" placeholder="Recherche rapide globale..." class="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        <button id="export-btn" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-download"></i> Exporter les données filtrées (CSV)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-[450px]">
+                    <table id="data-table" class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-slate-700 uppercase tracking-wider sticky top-0 z-10 font-semibold border-b border-slate-200">
+                            <tr id="table-headers"></tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-100 text-slate-600"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Script logique global -->
+    <script>
+        let workbookData = null;
+        let fileName = "";
+        let currentSheetName = "";
+        let originalRows = [];
+        let filteredRows = [];
+        let activeFilters = [];
+
+        let catChartInstance = null;
+        let numChartInstance = null;
+
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const dashboard = document.getElementById('dashboard');
+        const globalSearchInput = document.getElementById('global-search');
+
+        // Fermer les dropdowns au clic extérieur
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-dropdown-container')) {
+                document.querySelectorAll('.custom-dropdown-menu').forEach(menu => menu.classList.add('hidden'));
+            }
+            if (!e.target.closest('.searchable-select-container')) {
+                document.querySelectorAll('.searchable-dropdown').forEach(dropdown => dropdown.classList.add('hidden'));
+            }
+        });
+
+        // Gestion du Drag & Drop
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('border-indigo-500', 'bg-indigo-50/30'); }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/30'); }, false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt.files.length) handleFile(dt.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            fileName = file.name;
+            document.getElementById('file-info-name').textContent = fileName;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    if (typeof XLSX === 'undefined') {
+                        throw new Error("La bibliothèque SheetJS (XLSX) n'a pas pu être chargée. Vérifiez votre connexion Internet.");
+                    }
+
+                    const data = new Uint8Array(e.target.result);
+                    workbookData = XLSX.read(data, { type: 'array' });
+                    
+                    if (!workbookData.SheetNames || workbookData.SheetNames.length === 0) {
+                        throw new Error("Le fichier ne contient aucune feuille de calcul valide.");
+                    }
+
+                    const firstSheet = workbookData.SheetNames[0];
+                    loadSheet(firstSheet);
+                    dropZone.classList.add('hidden');
+                    dashboard.classList.remove('hidden');
+                } catch (err) {
+                    alert("Erreur lors de la lecture du fichier : " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadSheet(sheetName) {
+            currentSheetName = sheetName;
+            const worksheet = workbookData.Sheets[sheetName];
+            originalRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+            activeFilters = [];
+            
+            const sheetBtnsContainer = document.getElementById('sheet-buttons');
+            const sheetSelectorContainer = document.getElementById('sheet-selector-container');
+            sheetBtnsContainer.innerHTML = '';
+            
+            if (workbookData.SheetNames.length > 1) {
+                sheetSelectorContainer.classList.remove('hidden');
+                workbookData.SheetNames.forEach(name => {
+                    const btn = document.createElement('button');
+                    btn.className = `text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${name === sheetName ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+                    btn.textContent = name;
+                    btn.addEventListener('click', () => loadSheet(name));
+                    sheetBtnsContainer.appendChild(btn);
+                });
+            } else {
+                sheetSelectorContainer.classList.add('hidden');
+            }
+
+            initFiltersUI();
+            setupSearchableSelects();
+            updatePresetsDropdown();
+            applyFiltersAndSearch();
+        }
+
+        document.getElementById('add-filter-btn').addEventListener('click', () => {
+            if (!originalRows.length) return;
+            
+            // Nouveau filtre initialisé complètement vide
+            activeFilters.push({ 
+                column: "", 
+                operator: 'equals', 
+                values: []
+            });
+            renderFiltersUI();
+            applyFiltersAndSearch();
+        });
+
+        function initFiltersUI() {
+            activeFilters = [];
+            renderFiltersUI();
+        }
+
+        function renderFiltersUI() {
+            const container = document.getElementById('filters-container');
+            const noFiltersMsg = document.getElementById('no-filters-msg');
+            container.innerHTML = '';
+
+            if (activeFilters.length === 0) {
+                noFiltersMsg.classList.remove('hidden');
+                return;
+            }
+            noFiltersMsg.classList.add('hidden');
+
+            const columns = originalRows.length ? Object.keys(originalRows[0]) : [];
+
+            activeFilters.forEach((filter, index) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = "flex items-center gap-2 flex-wrap bg-slate-50 p-2.5 rounded-lg border border-slate-200";
+
+                // Champ de recherche dynamique pour la colonne du filtre
+                const colContainer = document.createElement('div');
+                colContainer.className = "relative searchable-select-container flex-1 min-w-[160px]";
+
+                const colInput = document.createElement('input');
+                colInput.type = "text";
+                colInput.className = "text-xs border border-slate-300 rounded-md px-2.5 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-full";
+                colInput.value = filter.column;
+                colInput.placeholder = "Sélectionner une colonne...";
+
+                const colDropdown = document.createElement('div');
+                colDropdown.className = "searchable-dropdown hidden absolute left-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto p-1 space-y-0.5";
+
+                function renderColDropdown(filterText = '') {
+                    colDropdown.innerHTML = '';
+                    const filteredCols = columns.filter(c => c.toLowerCase().includes(filterText.toLowerCase()));
+                    if (filteredCols.length === 0) {
+                        const noRes = document.createElement('div');
+                        noRes.className = "text-xs px-2.5 py-1.5 text-slate-400 italic";
+                        noRes.textContent = "Aucune colonne trouvée";
+                        colDropdown.appendChild(noRes);
+                        return;
+                    }
+                    filteredCols.forEach(col => {
+                        const item = document.createElement('div');
+                        item.className = "text-xs px-2.5 py-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-700 font-medium truncate";
+                        item.textContent = col;
+                        item.onclick = (e) => {
+                            e.stopPropagation();
+                            filter.column = col;
+                            colInput.value = col;
+                            colDropdown.classList.add('hidden');
+                            if (filter.operator === 'equals' || filter.operator === 'notequals') {
+                                const uniqueVals = [...new Set(originalRows.map(r => String(r[filter.column])))].sort();
+                                filter.values = [uniqueVals[0] !== undefined ? uniqueVals[0] : ''];
+                            }
+                            renderFiltersUI();
+                            applyFiltersAndSearch();
+                        };
+                        colDropdown.appendChild(item);
+                    });
+                }
+
+                colInput.onfocus = () => {
+                    document.querySelectorAll('.searchable-dropdown').forEach(d => { if (d !== colDropdown) d.classList.add('hidden'); });
+                    renderColDropdown(colInput.value);
+                    colDropdown.classList.remove('hidden');
+                };
+
+                colInput.oninput = () => {
+                    renderColDropdown(colInput.value);
+                    colDropdown.classList.remove('hidden');
+                };
+
+                colContainer.appendChild(colInput);
+                colContainer.appendChild(colDropdown);
+
+                // Sélecteur d'opérateur
+                const opSelect = document.createElement('select');
+                opSelect.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 font-medium";
+                const operators = [
+                    { val: 'equals', label: 'égal à (multiples)' },
+                    { val: 'notequals', label: 'différent de (multiples)' },
+                    { val: 'contains', label: 'contient' },
+                    { val: 'isempty', label: 'est vide' },
+                    { val: 'isnotempty', label: "n'est pas vide" },
+                    { val: 'gt', label: 'supérieur à (>)' },
+                    { val: 'lt', label: 'inférieur à (<)' }
+                ];
+                operators.forEach(op => {
+                    const opt = document.createElement('option');
+                    opt.value = op.val;
+                    opt.textContent = op.label;
+                    if (op.val === filter.operator) opt.selected = true;
+                    opSelect.appendChild(opt);
+                });
+                opSelect.addEventListener('change', (e) => {
+                    filter.operator = e.target.value;
+                    if (!filter.values) filter.values = [''];
+                    if ((filter.operator === 'equals' || filter.operator === 'notequals') && filter.values.length === 0 && filter.column) {
+                        const uniqueVals = [...new Set(originalRows.map(r => String(r[filter.column])))].sort();
+                        filter.values = [uniqueVals[0] !== undefined ? uniqueVals[0] : ''];
+                    }
+                    renderFiltersUI();
+                    applyFiltersAndSearch();
+                });
+
+                let valueField;
+                if (!filter.column) {
+                    valueField = document.createElement('span');
+                    valueField.className = "text-xs text-slate-400 italic flex-1 min-w-[150px]";
+                    valueField.textContent = "(Sélectionnez d'abord une colonne)";
+                } else if (filter.operator === 'isempty' || filter.operator === 'isnotempty') {
+                    valueField = document.createElement('span');
+                    valueField.className = "text-xs text-slate-400 italic flex-1 min-w-[150px]";
+                    valueField.textContent = "(Aucune valeur requise)";
+                } else if (filter.operator === 'equals' || filter.operator === 'notequals') {
+                    const dropdownContainer = document.createElement('div');
+                    dropdownContainer.className = "relative flex-1 min-w-[200px] custom-dropdown-container";
+
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.type = "button";
+                    toggleBtn.className = "w-full text-xs border border-slate-300 rounded-md px-3 py-1.5 bg-white font-medium text-left flex justify-between items-center shadow-sm cursor-pointer hover:bg-slate-50";
+
+                    const selectedCount = filter.values ? filter.values.length : 0;
+                    const btnLabel = selectedCount === 0 ? "Aucune sélection" : `${selectedCount} élément(s) sélectionné(s)`;
+                    toggleBtn.innerHTML = `<span>${btnLabel}</span> <i class="fa-solid fa-chevron-down text-slate-400 text-[10px]"></i>`;
+
+                    const menuDiv = document.createElement('div');
+                    menuDiv.className = "custom-dropdown-menu hidden absolute left-0 top-full mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg z-30 max-h-48 overflow-y-auto p-2 space-y-1";
+
+                    toggleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        document.querySelectorAll('.custom-dropdown-menu').forEach(m => {
+                            if (m !== menuDiv) m.classList.add('hidden');
+                        });
+                        menuDiv.classList.toggle('hidden');
+                    });
+
+                    const uniqueVals = filter.column ? [...new Set(originalRows.map(r => String(r[filter.column])))].sort() : [];
+                    uniqueVals.forEach(val => {
+                        const label = document.createElement('label');
+                        label.className = "flex items-center gap-2 text-xs py-1 px-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-700";
+
+                        const checkbox = document.createElement('input');
+                        checkbox.type = "checkbox";
+                        checkbox.className = "rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5";
+                        checkbox.value = val;
+                        if (filter.values && filter.values.includes(val)) {
+                            checkbox.checked = true;
+                        }
+
+                        checkbox.addEventListener('change', () => {
+                            if (!filter.values) filter.values = [];
+                            if (checkbox.checked) {
+                                if (!filter.values.includes(val)) filter.values.push(val);
+                            } else {
+                                filter.values = filter.values.filter(v => v !== val);
+                            }
+                            const count = filter.values.length;
+                            toggleBtn.querySelector('span').textContent = count === 0 ? "Aucune sélection" : `${count} élément(s) sélectionné(s)`;
+                            applyFiltersAndSearch();
+                        });
+
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = val === "" ? "(Vide)" : val;
+
+                        label.appendChild(checkbox);
+                        label.appendChild(textSpan);
+                        menuDiv.appendChild(label);
+                    });
+
+                    dropdownContainer.appendChild(toggleBtn);
+                    dropdownContainer.appendChild(menuDiv);
+                    valueField = dropdownContainer;
+                } else {
+                    valueField = document.createElement('input');
+                    valueField.type = 'text';
+                    valueField.className = "text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-1 focus:ring-indigo-500 flex-1 min-w-[150px]";
+                    valueField.placeholder = "Valeur de filtre...";
+                    valueField.value = filter.values && filter.values[0] !== undefined ? filter.values[0] : '';
+                    
+                    valueField.addEventListener('input', (e) => {
+                        filter.values = [e.target.value];
+                        applyFiltersAndSearch();
+                    });
+                }
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = "text-slate-400 hover:text-rose-600 p-1 rounded transition cursor-pointer";
+                removeBtn.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                removeBtn.addEventListener('click', () => {
+                    activeFilters.splice(index, 1);
+                    renderFiltersUI();
+                    applyFiltersAndSearch();
+                });
+
+                rowDiv.appendChild(colContainer);
+                rowDiv.appendChild(opSelect);
+                rowDiv.appendChild(valueField);
+                rowDiv.appendChild(removeBtn);
+                container.appendChild(rowDiv);
+            });
+        }
+
+        globalSearchInput.addEventListener('input', () => applyFiltersAndSearch());
+
+        function applyFiltersAndSearch() {
+            const globalQuery = globalSearchInput.value.toLowerCase().trim();
+
+            filteredRows = originalRows.filter(row => {
+                for (let filter of activeFilters) {
+                    if (!filter.column) continue; // Ignore les filtres sans colonne sélectionnée
+
+                    const rawVal = row[filter.column] !== undefined ? row[filter.column] : "";
+                    const cellVal = String(rawVal);
+
+                    if (filter.operator === 'isempty') {
+                        if (rawVal !== "" && rawVal !== null && rawVal !== undefined) return false;
+                    } else if (filter.operator === 'isnotempty') {
+                        if (rawVal === "" || rawVal === null || rawVal === undefined) return false;
+                    } else if (filter.operator === 'equals') {
+                        if (!filter.values || filter.values.length === 0) continue;
+                        if (!filter.values.includes(cellVal)) return false;
+                    } else if (filter.operator === 'notequals') {
+                        if (filter.values && filter.values.includes(cellVal)) return false;
+                    } else if (filter.operator === 'contains') {
+                        const filterVal = filter.values && filter.values[0] ? String(filter.values[0]).toLowerCase() : "";
+                        if (!cellVal.toLowerCase().includes(filterVal)) return false;
+                    } else if (filter.operator === 'gt') {
+                        const filterVal = filter.values && filter.values[0] ? Number(filter.values[0]) : 0;
+                        if (Number(rawVal) <= filterVal) return false;
+                    } else if (filter.operator === 'lt') {
+                        const filterVal = filter.values && filter.values[0] ? Number(filter.values[0]) : 0;
+                        if (Number(rawVal) >= filterVal) return false;
+                    }
+                }
+
+                if (globalQuery) {
+                    const matchGlobal = Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(globalQuery)
+                    );
+                    if (!matchGlobal) return false;
+                }
+
+                return true;
+            });
+
+            updateHeaderMetrics();
+            renderTable();
+            renderCategorySection();
+            renderNumericSection();
+        }
+
+        function updateHeaderMetrics() {
+            const totalRows = originalRows.length;
+            const currentRowsCount = filteredRows.length;
+            const colsCount = totalRows > 0 ? Object.keys(originalRows[0]).length : 0;
+
+            document.getElementById('kpi-rows').textContent = `${currentRowsCount} / ${totalRows}`;
+            document.getElementById('kpi-cols').textContent = colsCount;
+        }
+
+        // --- GESTION DES CHAMPS DE RECHERCHE DE COLONNES (VIDES PAR DEFAUT) ---
+        function setupSearchableSelects() {
+            if (!originalRows.length) return;
+            const columns = Object.keys(originalRows[0]);
+
+            const containers = document.querySelectorAll('.searchable-select-container');
+            containers.forEach(container => {
+                const inputId = container.getAttribute('data-target');
+                if (!inputId) return;
+                
+                const input = document.getElementById(inputId);
+                const dropdown = container.querySelector('.searchable-dropdown');
+
+                input.value = "";
+
+                function renderDropdownList(filterText = '') {
+                    dropdown.innerHTML = '';
+                    
+                    if (inputId === 'cat-split-col-input') {
+                        const optDiv = document.createElement('div');
+                        optDiv.className = "text-xs px-2.5 py-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-500 italic";
+                        optDiv.textContent = "-- Aucune ventilation (Simple) --";
+                        optDiv.onclick = () => {
+                            input.value = "";
+                            dropdown.classList.add('hidden');
+                            renderCategorySection();
+                        };
+                        dropdown.appendChild(optDiv);
+                    } else if (inputId === 'cat-val-col-input') {
+                        const optDiv = document.createElement('div');
+                        optDiv.className = "text-xs px-2.5 py-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-500 italic";
+                        optDiv.textContent = "-- Compter les lignes (Fréquence) --";
+                        optDiv.onclick = () => {
+                            input.value = "";
+                            dropdown.classList.add('hidden');
+                            renderCategorySection();
+                        };
+                        dropdown.appendChild(optDiv);
+                    } else if (inputId === 'num-x-col-input') {
+                        const optDiv = document.createElement('div');
+                        optDiv.className = "text-xs px-2.5 py-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-500 italic";
+                        optDiv.textContent = "N° Ligne (Index)";
+                        optDiv.onclick = () => {
+                            input.value = "";
+                            dropdown.classList.add('hidden');
+                            renderNumericSection();
+                        };
+                        dropdown.appendChild(optDiv);
+                    }
+
+                    const filteredCols = columns.filter(c => c.toLowerCase().includes(filterText.toLowerCase()));
+                    
+                    if (filteredCols.length === 0 && dropdown.children.length === 0) {
+                        const noRes = document.createElement('div');
+                        noRes.className = "text-xs px-2.5 py-1.5 text-slate-400 italic";
+                        noRes.textContent = "Aucune colonne trouvée";
+                        dropdown.appendChild(noRes);
+                        return;
+                    }
+
+                    filteredCols.forEach(col => {
+                        const item = document.createElement('div');
+                        item.className = "text-xs px-2.5 py-1.5 hover:bg-indigo-50 rounded cursor-pointer text-slate-700 font-medium truncate";
+                        item.textContent = col;
+                        item.onclick = () => {
+                            input.value = col;
+                            dropdown.classList.add('hidden');
+                            if (inputId.startsWith('cat-')) renderCategorySection();
+                            else if (inputId.startsWith('num-')) renderNumericSection();
+                        };
+                        dropdown.appendChild(item);
+                    });
+                }
+
+                input.onfocus = () => {
+                    document.querySelectorAll('.searchable-dropdown').forEach(d => { if (d !== dropdown) d.classList.add('hidden'); });
+                    renderDropdownList(input.value);
+                    dropdown.classList.remove('hidden');
+                };
+
+                input.oninput = () => {
+                    renderDropdownList(input.value);
+                    dropdown.classList.remove('hidden');
+                };
+            });
+
+            renderCategorySection();
+            renderNumericSection();
+        }
+
+        // --- GESTION DES CONFIGURATIONS / PRESETS (LOCALSTORAGE) ---
+        function getSavedPresets() {
+            try {
+                return JSON.parse(localStorage.getItem('analyzer_presets')) || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function updatePresetsDropdown() {
+            const select = document.getElementById('saved-presets-select');
+            const presets = getSavedPresets();
+            select.innerHTML = '<option value="">-- Choisir un modèle enregistré --</option>';
+            
+            Object.keys(presets).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+
+        document.getElementById('save-preset-btn').addEventListener('click', () => {
+            const presetName = prompt("Entrez un nom pour cette configuration type :");
+            if (!presetName || !presetName.trim()) return;
+
+            const presets = getSavedPresets();
+            presets[presetName.trim()] = {
+                catCol: document.getElementById('cat-col-input').value,
+                catSplitCol: document.getElementById('cat-split-col-input').value,
+                catValCol: document.getElementById('cat-val-col-input').value,
+                catChartType: document.getElementById('cat-chart-type-select').value,
+                numCol: document.getElementById('num-col-input').value,
+                numXCol: document.getElementById('num-x-col-input').value,
+                numSort: document.getElementById('num-sort-select').value,
+                filters: activeFilters
+            };
+
+            localStorage.setItem('analyzer_presets', JSON.stringify(presets));
+            updatePresetsDropdown();
+            document.getElementById('saved-presets-select').value = presetName.trim();
+            alert(`Configuration "${presetName.trim()}" enregistrée avec succès !`);
+        });
+
+        document.getElementById('load-preset-btn').addEventListener('click', () => {
+            const presetName = document.getElementById('saved-presets-select').value;
+            if (!presetName) {
+                alert("Veuillez sélectionner un modèle à charger.");
+                return;
+            }
+
+            const presets = getSavedPresets();
+            const config = presets[presetName];
+            if (!config) return;
+
+            document.getElementById('cat-col-input').value = config.catCol || '';
+            document.getElementById('cat-split-col-input').value = config.catSplitCol || '';
+            document.getElementById('cat-val-col-input').value = config.catValCol || '';
+            document.getElementById('cat-chart-type-select').value = config.catChartType || 'bar';
+
+            document.getElementById('num-col-input').value = config.numCol || '';
+            document.getElementById('num-x-col-input').value = config.numXCol || '';
+            document.getElementById('num-sort-select').value = config.numSort || 'desc';
+
+            activeFilters = config.filters || [];
+            renderFiltersUI();
+            applyFiltersAndSearch();
+            alert(`Configuration "${presetName}" chargée avec succès !`);
+        });
+
+        document.getElementById('delete-preset-btn').addEventListener('click', () => {
+            const presetName = document.getElementById('saved-presets-select').value;
+            if (!presetName) {
+                alert("Veuillez sélectionner un modèle à supprimer.");
+                return;
+            }
+
+            if (confirm(`Voulez-vous vraiment supprimer le modèle "${presetName}" ?`)) {
+                const presets = getSavedPresets();
+                delete presets[presetName];
+                localStorage.setItem('analyzer_presets', JSON.stringify(presets));
+                updatePresetsDropdown();
+            }
+        });
+
+        // --- SECTION 1 : REPARTITION PAR CATEGORIE (FORMULES ET COMPATIBILITE) ---
+        function renderCategorySection() {
+            const selectedColInput = document.getElementById('cat-col-input');
+            const splitColInput = document.getElementById('cat-split-col-input');
+            const valColInput = document.getElementById('cat-val-col-input');
+
+            if (!selectedColInput) return;
+
+            const selectedCol = selectedColInput.value.trim();
+            const splitCol = splitColInput.value.trim();
+            const valCol = valColInput.value.trim();
+            const chartType = document.getElementById('cat-chart-type-select').value;
+
+            const emptyMsg = document.getElementById('cat-empty-msg');
+            const activeView = document.getElementById('cat-active-view');
+            const warningMsg = document.getElementById('cat-warning-msg');
+            const formulaText = document.getElementById('cat-formula-text');
+            const incompatibilityMsg = document.getElementById('cat-incompatibility-msg');
+            const incompatibilityText = document.getElementById('cat-incompatibility-text');
+            const chartWrapper = document.getElementById('cat-chart-wrapper');
+
+            if (!selectedCol || !originalRows.length || !Object.keys(originalRows[0]).includes(selectedCol)) {
+                emptyMsg.classList.remove('hidden');
+                activeView.classList.add('hidden');
+                warningMsg.classList.add('hidden');
+                incompatibilityMsg.classList.add('hidden');
+                formulaText.textContent = "Veuillez sélectionner une colonne d'abscisse.";
+                return;
+            }
+
+            let formulaDesc = `Compte le nombre de lignes (fréquence) pour chaque valeur unique de la colonne "${selectedCol}"`;
+            if (valCol) {
+                formulaDesc = `Somme les valeurs de la colonne "${valCol}", groupées par chaque valeur unique de la colonne "${selectedCol}"`;
+            }
+            if (splitCol) {
+                formulaDesc += ` et ventilées par les sous-catégories de la colonne "${splitCol}".`;
+            } else {
+                formulaDesc += ".";
+            }
+            formulaText.textContent = formulaDesc;
+
+            let isCompatible = true;
+            let incompatibilityReason = "";
+
+            if (['pie', 'doughnut'].includes(chartType) && splitCol) {
+                isCompatible = false;
+                incompatibilityReason = "Les graphiques de type Camembert (Pie) et Donut ne prennent pas en charge les ventilations croisées (plusieurs séries simultanées). Veuillez utiliser des barres ou supprimer la ventilation.";
+            }
+
+            if (!isCompatible) {
+                incompatibilityMsg.classList.remove('hidden');
+                incompatibilityText.textContent = incompatibilityReason;
+                chartWrapper.classList.add('hidden');
+            } else {
+                incompatibilityMsg.classList.add('hidden');
+                chartWrapper.classList.remove('hidden');
+            }
+
+            emptyMsg.classList.add('hidden');
+            activeView.classList.remove('hidden');
+
+            const ctx = document.getElementById('catChart').getContext('2d');
+            if (catChartInstance) catChartInstance.destroy();
+
+            if (!splitCol) {
+                const counts = {};
+                let totalMetric = 0;
+
+                filteredRows.forEach(r => {
+                    const valX = String(r[selectedCol] !== undefined && r[selectedCol] !== "" ? r[selectedCol] : "(Vide)");
+                    if (valCol) {
+                        const num = Number(r[valCol]);
+                        if (!isNaN(num)) {
+                            counts[valX] = (counts[valX] || 0) + num;
+                            totalMetric += num;
+                        }
+                    } else {
+                        counts[valX] = (counts[valX] || 0) + 1;
+                        totalMetric += 1;
+                    }
+                });
+
+                const uniqueKeys = Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+                const totalUnique = uniqueKeys.length;
+
+                document.getElementById('cat-total-count').textContent = totalMetric.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+                if (totalUnique > 16) {
+                    warningMsg.classList.remove('hidden');
+                    document.getElementById('cat-unique-count').textContent = totalUnique;
+                } else {
+                    warningMsg.classList.add('hidden');
+                }
+
+                const listContainer = document.getElementById('cat-values-list');
+                listContainer.innerHTML = '';
+                uniqueKeys.forEach(key => {
+                    const metricVal = counts[key];
+                    const pct = totalMetric > 0 ? ((metricVal / totalMetric) * 100).toFixed(1) : 0;
+                    
+                    const li = document.createElement('li');
+                    li.className = "px-4 py-2 flex justify-between items-center hover:bg-slate-50";
+                    li.innerHTML = `
+                        <span class="font-medium text-slate-700">${key}</span>
+                        <div class="flex items-center gap-4 text-slate-500">
+                            <span>${valCol ? 'Somme' : 'Nombre'} : <strong class="text-slate-800">${metricVal.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</strong></span>
+                            <span class="w-24 text-right">Pourcentage : <strong class="text-indigo-600">${pct}%</strong></span>
+                        </div>
+                    `;
+                    listContainer.appendChild(li);
+                });
+
+                if (isCompatible) {
+                    const displayKeys = uniqueKeys.slice(0, 16);
+                    const displayData = displayKeys.map(k => counts[k]);
+
+                    let actualType = chartType;
+                    let indexAxis = 'x';
+
+                    if (chartType === 'horizontalBar') {
+                        actualType = 'bar';
+                        indexAxis = 'y';
+                    }
+
+                    catChartInstance = new Chart(ctx, {
+                        type: actualType,
+                        data: {
+                            labels: displayKeys,
+                            datasets: [{
+                                label: valCol ? `Somme de ${valCol}` : `Nombre de lignes`,
+                                data: displayData,
+                                backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'],
+                                borderRadius: actualType === 'bar' ? 6 : 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: indexAxis,
+                            plugins: {
+                                legend: { display: ['pie', 'doughnut'].includes(actualType) }
+                            }
+                        }
+                    });
+                }
+            } else {
+                warningMsg.classList.add('hidden');
+                
+                const matrix = {}; 
+                const splitValuesSet = new Set();
+                let totalMetric = 0;
+
+                filteredRows.forEach(r => {
+                    const catX = String(r[selectedCol] !== undefined && r[selectedCol] !== "" ? r[selectedCol] : "(Vide)");
+                    const sVal = String(r[splitCol] !== undefined && r[splitCol] !== "" ? r[splitCol] : "(Vide)");
+                    
+                    splitValuesSet.add(sVal);
+                    if (!matrix[catX]) matrix[catX] = {};
+
+                    if (valCol) {
+                        const num = Number(r[valCol]);
+                        if (!isNaN(num)) {
+                            matrix[catX][sVal] = (matrix[catX][sVal] || 0) + num;
+                            totalMetric += num;
+                        }
+                    } else {
+                        matrix[catX][sVal] = (matrix[catX][sVal] || 0) + 1;
+                        totalMetric += 1;
+                    }
+                });
+
+                const uniqueCats = Object.keys(matrix).sort((a,b) => {
+                    const totalA = Object.values(matrix[a]).reduce((s, v) => s + v, 0);
+                    const totalB = Object.values(matrix[b]).reduce((s, v) => s + v, 0);
+                    return totalB - totalA;
+                });
+
+                const uniqueSplits = Array.from(splitValuesSet).sort();
+
+                document.getElementById('cat-total-count').textContent = totalMetric.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+                const listContainer = document.getElementById('cat-values-list');
+                listContainer.innerHTML = '';
+
+                uniqueCats.forEach(catX => {
+                    const catTotal = Object.values(matrix[catX]).reduce((s, v) => s + v, 0);
+                    const catPctOfTotal = totalMetric > 0 ? ((catTotal / totalMetric) * 100).toFixed(1) : 0;
+
+                    const li = document.createElement('li');
+                    li.className = "px-4 py-3 hover:bg-slate-50 space-y-1.5";
+                    
+                    let subHtml = `<div class="flex justify-between items-center font-semibold text-slate-800">
+                        <span>${catX} (Total: ${catTotal.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} - ${catPctOfTotal}%)</span>
+                    </div><div class="pl-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-slate-500 text-[11px]">`;
+
+                    uniqueSplits.forEach(sVal => {
+                        const sValCount = matrix[catX][sVal] || 0;
+                        const sValPctInCat = catTotal > 0 ? ((sValCount / catTotal) * 100).toFixed(1) : 0;
+                        subHtml += `<div><span class="font-medium text-slate-700">${sVal === "" ? "(Vide)" : sVal}</span> : <strong>${sValCount.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</strong> (${sValPctInCat}%)</div>`;
+                    });
+                    subHtml += `</div>`;
+
+                    li.innerHTML = subHtml;
+                    listContainer.appendChild(li);
+                });
+
+                if (isCompatible) {
+                    const displayCats = uniqueCats.slice(0, 16);
+                    const colors = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316', '#a855f7'];
+
+                    const datasets = uniqueSplits.map((sVal, idx) => {
+                        const dataValues = displayCats.map(catX => matrix[catX][sVal] || 0);
+                        return {
+                            label: sVal === "" ? "(Vide)" : sVal,
+                            data: dataValues,
+                            backgroundColor: colors[idx % colors.length],
+                            borderRadius: 4
+                        };
+                    });
+
+                    let actualType = chartType === 'horizontalBar' ? 'bar' : chartType;
+                    let indexAxis = chartType === 'horizontalBar' ? 'y' : 'x';
+
+                    catChartInstance = new Chart(ctx, {
+                        type: actualType,
+                        data: {
+                            labels: displayCats,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: indexAxis,
+                            plugins: {
+                                legend: { display: true, position: 'top' }
+                            },
+                            scales: {
+                                x: { stacked: false, grid: { display: false } },
+                                y: { stacked: false, beginAtZero: true, grid: { color: '#f1f5f9' } }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // --- SECTION 2 : ANALYSE & EVOLUTION NUMERIQUE ---
+        function renderNumericSection() {
+            const numColInput = document.getElementById('num-col-input');
+            const numXColInput = document.getElementById('num-x-col-input');
+
+            if (!numColInput) return;
+
+            const selectedCol = numColInput.value.trim();
+            const xAxisCol = numXColInput.value.trim();
+            const sortOrder = document.getElementById('num-sort-select').value;
+
+            const emptyMsg = document.getElementById('num-empty-msg');
+            const activeView = document.getElementById('num-active-view');
+            const errorMsg = document.getElementById('num-error-msg');
+            const errorDetails = document.getElementById('num-error-details');
+
+            if (!selectedCol || !originalRows.length || !Object.keys(originalRows[0]).includes(selectedCol)) {
+                emptyMsg.classList.remove('hidden');
+                activeView.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+                return;
+            }
+
+            const invalidValues = [];
+            const validNumbers = [];
+
+            filteredRows.forEach((r) => {
+                const rawVal = r[selectedCol];
+                if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+
+                const num = Number(rawVal);
+                if (isNaN(num)) {
+                    if (!invalidValues.includes(String(rawVal))) {
+                        invalidValues.push(String(rawVal));
+                    }
+                } else {
+                    validNumbers.push(num);
+                }
+            });
+
+            if (invalidValues.length > 0) {
+                errorMsg.classList.remove('hidden');
+                emptyMsg.classList.add('hidden');
+                activeView.classList.add('hidden');
+
+                const displayedErrors = invalidValues.slice(0, 5).map(v => `"${v}"`).join(', ');
+                const extraText = invalidValues.length > 5 ? ` (et ${invalidValues.length - 5} autre(s)...)` : '';
+                errorDetails.textContent = `Des valeurs non numériques ont été détectées dans la colonne à analyser : ${displayedErrors}${extraText}. Impossible de calculer des métriques exactes.`;
+                return;
+            }
+
+            errorMsg.classList.add('hidden');
+            emptyMsg.classList.add('hidden');
+            activeView.classList.remove('hidden');
+
+            if (validNumbers.length === 0) {
+                document.getElementById('num-stat-sum').textContent = "0";
+                document.getElementById('num-stat-avg').textContent = "0";
+                document.getElementById('num-stat-median').textContent = "0";
+                document.getElementById('num-stat-top5').textContent = "Aucune valeur";
+                document.getElementById('num-stat-low5').textContent = "Aucune valeur";
+                if (numChartInstance) numChartInstance.destroy();
+                return;
+            }
+
+            const sum = validNumbers.reduce((acc, v) => acc + v, 0);
+            const avg = sum / validNumbers.length;
+            const sortedNums = [...validNumbers].sort((a,b) => b - a);
+
+            let median = 0;
+            const sortedAsc = [...validNumbers].sort((a,b) => a - b);
+            const mid = Math.floor(sortedAsc.length / 2);
+            if (sortedAsc.length % 2 === 0) {
+                median = (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+            } else {
+                median = sortedAsc[mid];
+            }
+
+            const top5 = sortedNums.slice(0, 5);
+            const low5 = sortedNums.slice(-5).reverse();
+
+            document.getElementById('num-stat-sum').textContent = sum.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            document.getElementById('num-stat-avg').textContent = avg.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            document.getElementById('num-stat-median').textContent = median.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+            document.getElementById('num-stat-top5').innerHTML = top5.map((v, i) => `<span><strong>${i + 1}.</strong> ${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</span>`).join('');
+            document.getElementById('num-stat-low5').innerHTML = low5.map((v, i) => `<span><strong>${i + 1}.</strong> ${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</span>`).join('');
+
+            let itemsToDisplay = [];
+
+            if (xAxisCol) {
+                const groupedSums = {};
+                filteredRows.forEach(r => {
+                    const rawVal = r[selectedCol];
+                    if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+                    const num = Number(rawVal);
+                    if (isNaN(num)) return;
+
+                    const codeX = String(r[xAxisCol] !== undefined && r[xAxisCol] !== "" ? r[xAxisCol] : "(Vide)");
+                    groupedSums[codeX] = (groupedSums[codeX] || 0) + num;
+                });
+
+                itemsToDisplay = Object.keys(groupedSums).map(k => ({ label: k, value: groupedSums[k] }));
+            } else {
+                filteredRows.forEach((r, idx) => {
+                    const rawVal = r[selectedCol];
+                    if (rawVal === "" || rawVal === null || rawVal === undefined) return;
+                    const num = Number(rawVal);
+                    if (isNaN(num)) return;
+
+                    itemsToDisplay.push({ label: `Ligne ${idx + 1}`, value: num });
+                });
+            }
+
+            if (sortOrder === 'desc') {
+                itemsToDisplay.sort((a, b) => b.value - a.value);
+            } else if (sortOrder === 'asc') {
+                itemsToDisplay.sort((a, b) => a.value - b.value);
+            }
+
+            document.getElementById('num-cumul-total').textContent = sum.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+            const listContainer = document.getElementById('num-values-list');
+            listContainer.innerHTML = '';
+
+            itemsToDisplay.forEach(item => {
+                const pct = sum !== 0 ? ((item.value / sum) * 100).toFixed(1) : 0;
+                const li = document.createElement('li');
+                li.className = "px-4 py-2 flex justify-between items-center hover:bg-slate-50";
+                li.innerHTML = `
+                    <span class="font-medium text-slate-700">${item.label}</span>
+                    <div class="flex items-center gap-4 text-slate-500">
+                        <span>Somme cumulée : <strong class="text-slate-800">${item.value.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</strong></span>
+                        <span class="w-24 text-right">Pourcentage : <strong class="text-emerald-600">${pct}%</strong></span>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+
+            const chartSlice = itemsToDisplay.slice(0, 16);
+            const chartLabels = chartSlice.map(item => item.label);
+            const chartDataValues = chartSlice.map(item => item.value);
+
+            const ctx = document.getElementById('numChart').getContext('2d');
+            if (numChartInstance) numChartInstance.destroy();
+
+            numChartInstance = new Chart(ctx, {
+                type: xAxisCol ? 'bar' : 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: `${selectedCol} (Top 16 affichés)`,
+                        data: chartDataValues,
+                        borderColor: '#059669',
+                        backgroundColor: xAxisCol ? '#10b981' : 'rgba(16, 185, 129, 0.1)',
+                        borderRadius: xAxisCol ? 6 : 0,
+                        fill: !xAxisCol,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'top' } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderTable() {
+            const headersTr = document.getElementById('table-headers');
+            const tbody = document.getElementById('table-body');
+            headersTr.innerHTML = '';
+            tbody.innerHTML = '';
+
+            if (filteredRows.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="100" class="text-center py-8 text-slate-400 italic">Aucune donnée correspondante trouvée.</td>`;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            const columns = Object.keys(filteredRows[0]);
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.className = "px-4 py-3 font-semibold text-slate-700 whitespace-nowrap";
+                th.textContent = col;
+                headersTr.appendChild(th);
+            });
+
+            const limitRows = filteredRows.slice(0, 200);
+            limitRows.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition";
+                columns.forEach(col => {
+                    const td = document.createElement('td');
+                    td.className = "px-4 py-2.5 whitespace-nowrap text-slate-600";
+                    td.textContent = row[col] !== undefined ? row[col] : "";
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if (!filteredRows.length) return;
+            const ws = XLSX.utils.json_to_sheet(filteredRows);
+            const csvOutput = XLSX.utils.sheet_to_csv(ws);
+            const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `export_filtre_${currentSheetName || 'donnees'}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
